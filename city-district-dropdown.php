@@ -2,8 +2,9 @@
 /**
  * Plugin Name: City District Dropdown
  * Description: Replaces city and district text fields with searchable dropdowns in checkout
- * Version: 1.0
+ * Version: 1.1
  * Author: Anas Nagati
+ * Update: Loads all data upfront for better performance
  */
 
 // Exit if accessed directly
@@ -26,10 +27,6 @@ class City_District_Dropdown {
         // Enqueue scripts
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
 
-        // Ajax handlers
-        add_action('wp_ajax_get_districts', array($this, 'get_districts_ajax'));
-        add_action('wp_ajax_nopriv_get_districts', array($this, 'get_districts_ajax'));
-
         // Add admin scripts
         add_action('admin_enqueue_scripts', array($this, 'admin_scripts'));
 
@@ -37,49 +34,6 @@ class City_District_Dropdown {
         add_action('wp_ajax_add_city', array($this, 'add_city_ajax'));
         add_action('wp_ajax_add_district', array($this, 'add_district_ajax'));
         add_action('wp_ajax_delete_location', array($this, 'delete_location_ajax'));
-
-        add_action('wp_ajax_test_get_districts', array($this, 'test_get_districts'));
-        add_action('wp_ajax_nopriv_test_get_districts', array($this, 'test_get_districts'));
-
-        add_action('init', function() {
-            if (current_user_can('manage_options') && isset($_GET['debug_cities'])) {
-                global $wpdb;
-                $table_name = $wpdb->prefix . 'city_district_locations';
-                $cities = $wpdb->get_results("SELECT * FROM $table_name WHERE parent_id = 0");
-                echo '<pre>';
-                print_r($cities);
-                echo '</pre>';
-                exit;
-            }
-        });
-    }
-
-
-    // Add this to your class
-    public function test_get_districts() {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'city_district_locations';
-
-        // Get a city ID
-        $city = $wpdb->get_row("SELECT id FROM $table_name WHERE parent_id = 0 LIMIT 1");
-
-        if (!$city) {
-            wp_send_json_error('No cities found');
-        }
-
-        $city_id = $city->id;
-
-        // Get districts for this city
-        $districts = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, name FROM $table_name WHERE parent_id = %d ORDER BY name ASC",
-            $city_id
-        ));
-
-        wp_send_json_success(array(
-            'city_id' => $city_id,
-            'districts' => $districts,
-            'count' => count($districts)
-        ));
     }
 
     /**
@@ -388,9 +342,6 @@ class City_District_Dropdown {
      * Modify checkout fields
      */
     public function modify_checkout_fields($fields) {
-        // Debug output to check field structure
-        error_log('WooCommerce checkout fields: ' . print_r(array_keys($fields['billing']), true));
-
         // Replace city field with select
         if (isset($fields['billing']['billing_city'])) {
             $fields['billing']['billing_city']['type'] = 'select';
@@ -438,6 +389,42 @@ class City_District_Dropdown {
     }
 
     /**
+     * Get all locations data (cities with their districts)
+     */
+    private function get_all_locations() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'city_district_locations';
+
+        // Get all cities
+        $cities = $wpdb->get_results(
+            "SELECT id, name FROM $table_name WHERE parent_id = 0 ORDER BY name ASC"
+        );
+
+        // Get all districts
+        $districts = $wpdb->get_results(
+            "SELECT id, name, parent_id FROM $table_name WHERE parent_id > 0 ORDER BY name ASC"
+        );
+
+        // Organize districts by city
+        $districts_by_city = array();
+        foreach ($districts as $district) {
+            if (!isset($districts_by_city[$district->parent_id])) {
+                $districts_by_city[$district->parent_id] = array();
+            }
+            $districts_by_city[$district->parent_id][] = array(
+                'id' => $district->id,
+                'name' => $district->name
+            );
+        }
+
+        return array(
+            'cities' => $cities,
+            'districts_by_city' => $districts_by_city
+        );
+    }
+
+
+    /**
      * Enqueue frontend scripts
      */
     public function enqueue_scripts() {
@@ -445,63 +432,24 @@ class City_District_Dropdown {
             return;
         }
 
-        // Enqueue Select2 from CDN
+        // Enqueue Select2
         wp_enqueue_style('select2', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css');
         wp_enqueue_script('select2', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js', array('jquery'), '4.0.13', true);
 
         // Enqueue our custom script and styles
-        wp_enqueue_script('city-district-js', plugin_dir_url(__FILE__) . 'city-district.js', array('jquery', 'select2'), '1.0', true);
-        wp_enqueue_style('city-district-css', plugin_dir_url(__FILE__) . 'city-district.css', array(), '1.0');
+        wp_enqueue_script('city-district-js', plugin_dir_url(__FILE__) . 'city-district.js', array('jquery', 'select2'), '1.1', true);
+        wp_enqueue_style('city-district-css', plugin_dir_url(__FILE__) . 'city-district.css', array(), '1.1');
 
-        // Get all cities for initial load
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'city_district_locations';
-        $cities = $wpdb->get_results("SELECT id, name FROM $table_name WHERE parent_id = 0 ORDER BY name ASC");
+        // Get all locations data
+        $locations_data = $this->get_all_locations();
 
         wp_localize_script('city-district-js', 'city_district_data', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'cities' => $cities,
+            'cities' => $locations_data['cities'],
+            'districts_by_city' => $locations_data['districts_by_city'],
             'nonce' => wp_create_nonce('city_district_nonce')
         ));
     }
-
-    /**
-     * Ajax handler to get districts
-     */
-    public function get_districts_ajax() {
-        check_ajax_referer('city_district_nonce', 'nonce');
-
-        $city_id = intval($_POST['city_id']);
-
-        if (empty($city_id)) {
-            wp_send_json_error('City ID is required');
-        }
-
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'city_district_locations';
-
-        // Debug logging
-        error_log('Getting districts for city ID: ' . $city_id);
-
-        $districts = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, name FROM $table_name WHERE parent_id = %d ORDER BY name ASC",
-            $city_id
-        ));
-
-        // Debug logging
-        error_log('Found ' . count($districts) . ' districts');
-
-        wp_send_json_success($districts);
-    }
-
-
-
-
 }
 
 // Initialize plugin
 $city_district_dropdown = new City_District_Dropdown();
-
-
-
-
