@@ -345,48 +345,41 @@ class City_District_Dropdown {
         // Replace city field with select
         if (isset($fields['billing']['billing_city'])) {
             $fields['billing']['billing_city']['type'] = 'select';
-            $fields['billing']['billing_city']['options'] = array('' => __('Select city', 'woocommerce'));
-            $fields['billing']['billing_city']['class'] = array('city-select', 'select2-selection');
+            $fields['billing']['billing_city']['options'] = array('' => __('إختر مدينة', 'woocommerce'));
+            $fields['billing']['billing_city']['class'] = array('city-select');
             $fields['billing']['billing_city']['input_class'] = array('city-select');
-            $fields['billing']['billing_city']['custom_attributes'] = array(
-                'data-placeholder' => __('Select city', 'woocommerce')
-            );
+            $fields['billing']['billing_city']['custom_attributes'] = array('data-placeholder' => __('إختر مدينة', 'woocommerce'));
         }
 
         // Replace district field with select
         if (isset($fields['billing']['billing_address_1'])) {
             $fields['billing']['billing_address_1']['type'] = 'select';
-            $fields['billing']['billing_address_1']['options'] = array('' => __('Select district', 'woocommerce'));
-            $fields['billing']['billing_address_1']['class'] = array('district-select', 'select2-selection');
+            $fields['billing']['billing_address_1']['options'] = array('' => __('إختر حي', 'woocommerce'));
+            $fields['billing']['billing_address_1']['class'] = array('district-select');
             $fields['billing']['billing_address_1']['input_class'] = array('district-select');
-            $fields['billing']['billing_address_1']['custom_attributes'] = array(
-                'data-placeholder' => __('Select district', 'woocommerce')
-            );
+            $fields['billing']['billing_address_1']['custom_attributes'] = array('data-placeholder' => __('إختر حي', 'woocommerce'));
         }
 
         // Do the same for shipping fields
         if (isset($fields['shipping']['shipping_city'])) {
             $fields['shipping']['shipping_city']['type'] = 'select';
-            $fields['shipping']['shipping_city']['options'] = array('' => __('Select city', 'woocommerce'));
-            $fields['shipping']['shipping_city']['class'] = array('city-select', 'select2-selection');
+            $fields['shipping']['shipping_city']['options'] = array('' => __('إختر مدينة', 'woocommerce'));
+            $fields['shipping']['shipping_city']['class'] = array('city-select');
             $fields['shipping']['shipping_city']['input_class'] = array('city-select');
-            $fields['shipping']['shipping_city']['custom_attributes'] = array(
-                'data-placeholder' => __('Select city', 'woocommerce')
-            );
+            $fields['shipping']['shipping_city']['custom_attributes'] = array('data-placeholder' => __('إختر مدينة', 'woocommerce'));
         }
 
         if (isset($fields['shipping']['shipping_address_1'])) {
             $fields['shipping']['shipping_address_1']['type'] = 'select';
-            $fields['shipping']['shipping_address_1']['options'] = array('' => __('Select district', 'woocommerce'));
-            $fields['shipping']['shipping_address_1']['class'] = array('district-select', 'select2-selection');
+            $fields['shipping']['shipping_address_1']['options'] = array('' => __('إختر منطقة', 'woocommerce'));
+            $fields['shipping']['shipping_address_1']['class'] = array('district-select');
             $fields['shipping']['shipping_address_1']['input_class'] = array('district-select');
-            $fields['shipping']['shipping_address_1']['custom_attributes'] = array(
-                'data-placeholder' => __('Select district', 'woocommerce')
-            );
+            $fields['shipping']['shipping_address_1']['custom_attributes'] = array('data-placeholder' => __('إختر منطقة', 'woocommerce'));
         }
 
         return $fields;
     }
+
 
     /**
      * Get all locations data (cities with their districts)

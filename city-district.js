@@ -4,103 +4,161 @@ jQuery(document).ready(function($) {
         return;
     }
 
-    // Initialize Select2 on city selectors
-    function initializeSelects() {
-        $('.city-select').select2({
-            placeholder: 'Select a city',
-            allowClear: true,
-            width: '100%'
-        });
+    console.log('Initializing with data:', city_district_data); // Debug log
 
-        $('.district-select').select2({
-            placeholder: 'Select a district',
-            allowClear: true,
-            width: '100%'
+    // Initialize Select2 on city and district selectors
+    function initializeSelects() {
+        $('.city-select, .district-select').select2({
+            placeholder: function() {
+                return $(this).data('placeholder');
+            },
+            allowClear: false,
+            width: '100%',
+            minimumResultsForSearch: 5 // Show search after 5 items
         });
     }
 
-    // Initialize on page load
-    initializeSelects();
-
     // Populate cities on page load
     function populateCities() {
-        var cities = city_district_data.cities;
-        $('.city-select').each(function() {
+        if (!city_district_data.cities || !city_district_data.cities.length) {
+            console.error('No cities found in city_district_data');
+            return;
+        }
+
+        console.log('Populating cities with:', city_district_data.cities); // Debug log
+
+        // Find all city select fields
+        $('select#billing_city, select#shipping_city').each(function() {
             var select = $(this);
             var currentVal = select.val();
 
-            // Check if options are already added (to avoid duplicates)
-            if (select.find('option').length <= 1) {
-                // Add options
-                $.each(cities, function(index, city) {
-                    select.append(`<option value="${city.id}">${city.name}</option>`);
-                });
-            }
+            // Keep the placeholder option and remove other options
+            select.find('option:not(:first)').remove();
 
-            // Restore selected value if any
+            // Add city options
+            $.each(city_district_data.cities, function(index, city) {
+                select.append($('<option>', {
+                    value: city.name,
+                    text: city.name,
+                    'data-city-id': city.id // Store ID as data attribute
+                }));
+            });
+
+            // Restore value if it existed
             if (currentVal) {
                 select.val(currentVal);
             }
 
-            // Trigger change to update Select2
+            // Update Select2
             select.trigger('change');
         });
     }
 
-    // Populate cities on page load
+    // Initialize selects first
+    initializeSelects();
+
+    // Then populate cities
     populateCities();
 
     // Handle city selection changes
-    $(document).on('select2:select', '.city-select', function(e) {
-        var cityId = e.params.data.id;
-        if (!cityId) {
-            console.error('City ID is undefined');
+    $(document).on('change', 'select#billing_city, select#shipping_city', function() {
+        var cityName = $(this).val();
+        if (!cityName) {
             return;
         }
+
+        console.log('City selected:', cityName); // Debug log
 
         // Find the corresponding district select
         var districtSelect;
-        if ($(this).is('#billing_city_field')) {
-            districtSelect = $('#billing_address_1_field');
-        } else if ($(this).is('#shipping_city')) {
-            districtSelect = $('#shipping_address_1_field');
+        if ($(this).attr('id') === 'billing_city') {
+            districtSelect = $('#billing_address_1');
         } else {
-            console.error('City select element not found');
+            districtSelect = $('#shipping_address_1');
+        }
+
+        if (!districtSelect.length) {
+            console.error('District select not found');
             return;
         }
 
-        // Clear existing districts
+        // Find city ID from selected option's data attribute
+        var cityId = $(this).find('option:selected').data('city-id');
+
+        if (!cityId) {
+            // Fall back to searching by name
+            var foundCity = null;
+            $.each(city_district_data.cities, function(i, city) {
+                if (city.name === cityName) {
+                    foundCity = city;
+                    return false; // Break loop
+                }
+            });
+
+            if (foundCity) {
+                cityId = foundCity.id;
+            } else {
+                console.error('Could not find city ID for:', cityName);
+                return;
+            }
+        }
+
+        console.log('Found city ID:', cityId); // Debug log
+
+        // Clear existing districts except placeholder
         districtSelect.find('option:not(:first)').remove();
         districtSelect.val('').trigger('change');
 
-        // Get districts from preloaded data
+        // Get districts for this city
         if (city_district_data.districts_by_city && city_district_data.districts_by_city[cityId]) {
             var districts = city_district_data.districts_by_city[cityId];
+            console.log('Found districts:', districts); // Debug log
+
             $.each(districts, function(index, district) {
-                districtSelect.append(`<option value="${district.id}">${district.name}</option>`);
+                districtSelect.append($('<option>', {
+                    value: district.name,
+                    text: district.name
+                }));
             });
+
             districtSelect.trigger('change');
         } else {
-            console.error('No districts found for city ID:', cityId);
+            console.log('No districts found for city ID:', cityId);
         }
     });
 
+    // Add custom CSS to fix the gray background issue
+    $('<style>')
+        .prop("type", "text/css")
+        .html(`
+            .select2-container--default .select2-results__option--selected {
+                background-color: #e0e0e0;
+            }
+            .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+                background-color: #5897fb;
+                color: white;
+            }
+            .select2-container--default.select2-container--focus .select2-selection--single {
+                border-color: #aaa;
+            }
+        `)
+        .appendTo("head");
+
     // Re-initialize after form updates
     $(document.body).on('updated_checkout', function() {
+        console.log('Checkout updated, reinitializing selects'); // Debug log
+
         setTimeout(function() {
             // Destroy existing select2 instances first
-            $('.city-select, .district-select').each(function() {
+            $('select#billing_city, select#shipping_city, select#billing_address_1, select#shipping_address_1').each(function() {
                 if ($(this).hasClass('select2-hidden-accessible')) {
                     $(this).select2('destroy');
                 }
             });
 
-            // Re-initialize
+            // Re-initialize and populate
             initializeSelects();
             populateCities();
         }, 200);
     });
-
-    // Debugging: Log the data structure
-    console.log('city_district_data:', city_district_data);
 });
