@@ -8,6 +8,54 @@
 
 if (!defined('ABSPATH')) exit;
 
+register_activation_hook(__FILE__, 'city_select2_create_table_and_import');
+
+function city_select2_create_table_and_import() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'city_district_locations';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        name varchar(100) NOT NULL,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+
+    dbDelta($sql);
+
+    // Import cities from CSV
+    $csv_file = plugin_dir_path(__FILE__) . 'cities.csv';
+
+    if (file_exists($csv_file)) {
+        $handle = fopen($csv_file, 'r');
+        if ($handle) {
+            $is_first_row = true;
+            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                if ($is_first_row) {
+                    $is_first_row = false; // skip header
+                    continue;
+                }
+
+                $city_name = trim($data[0]);
+                if (!empty($city_name)) {
+                    $exists = $wpdb->get_var($wpdb->prepare(
+                        "SELECT COUNT(*) FROM $table_name WHERE name = %s",
+                        $city_name
+                    ));
+                    if (!$exists) {
+                        $wpdb->insert($table_name, ['name' => $city_name]);
+                    }
+                }
+            }
+            fclose($handle);
+        }
+    }
+}
+
+
 // Enqueue Select2 and custom JS
 add_action('wp_enqueue_scripts', function() {
     if (is_checkout()) {
